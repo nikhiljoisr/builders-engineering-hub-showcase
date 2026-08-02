@@ -66,6 +66,10 @@ class ShowcaseParser(HTMLParser):
         self.has_viewport = False
         self.has_description = False
         self.has_skip_link = False
+        self.has_restrictive_csp = False
+        self.has_no_referrer = False
+        self.has_script = False
+        self.has_form = False
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         values = {name: value or "" for name, value in attrs}
@@ -79,6 +83,18 @@ class ShowcaseParser(HTMLParser):
             self.has_viewport = True
         if tag == "meta" and values.get("name") == "description":
             self.has_description = True
+        if tag == "meta" and values.get("http-equiv", "").lower() == "content-security-policy":
+            policy = values.get("content", "").lower()
+            self.has_restrictive_csp = all(
+                directive in policy
+                for directive in ("default-src 'none'", "script-src 'none'", "style-src 'self'", "object-src 'none'")
+            )
+        if tag == "meta" and values.get("name") == "referrer" and values.get("content") == "no-referrer":
+            self.has_no_referrer = True
+        if tag == "script":
+            self.has_script = True
+        if tag == "form":
+            self.has_form = True
         if tag == "a" and values.get("href") == "#main-content":
             self.has_skip_link = True
         for attribute in ("href", "src"):
@@ -140,6 +156,10 @@ def check_html() -> None:
             fail(f"{name} is missing main, h1 or viewport semantics")
         if name == "index.html" and (not parser.has_description or not parser.has_skip_link):
             fail("index.html needs a description and skip link")
+        if not parser.has_restrictive_csp or not parser.has_no_referrer:
+            fail(f"{name} needs a restrictive content policy and no-referrer policy")
+        if parser.has_script or parser.has_form:
+            fail(f"{name} must remain free of scripts and forms")
         for attribute, value in parser.refs:
             parsed = urlparse(value)
             if parsed.scheme:
