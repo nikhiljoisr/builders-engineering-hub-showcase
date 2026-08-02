@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://nikhiljoisr.github.io/builders-engineering-hub-showcase/sitemap.xml
